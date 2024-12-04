@@ -16,8 +16,6 @@ REGIONS = [
 
 class VocalChannelManager(BaseHTTPRequestHandler):
 
-class VocalChannelManager(BaseHTTPRequestHandler):
-
     def respond_with_html(self, html):
         """Respond with HTML content."""
         self.send_response(200)
@@ -44,7 +42,7 @@ class VocalChannelManager(BaseHTTPRequestHandler):
             <meta charset="UTF-8">
             <title>Vocal Channel Manager</title>
             <style>
-                /* Animation de fond fade subtil */
+                /* Animation de fond fade subtil entre noir et gris foncé */
                 @keyframes backgroundFade {
                     0% { background-color: #000000; }
                     50% { background-color: #1a1a1a; }
@@ -76,44 +74,6 @@ class VocalChannelManager(BaseHTTPRequestHandler):
                     animation: backgroundFade 20s infinite;
                 }
 
-                /* Menu de navigation */
-                .menu {
-                    position: absolute;
-                    top: 20px;
-                    left: 50%;
-                    transform: translateX(-50%);
-                    display: flex;
-                    gap: 30px;
-                }
-
-                .menu a {
-                    color: #ffffff;
-                    text-decoration: none;
-                    font-size: 18px;
-                    position: relative;
-                    padding: 5px 0;
-                    transition: color 0.3s;
-                }
-
-                .menu a::after {
-                    content: '';
-                    position: absolute;
-                    width: 0;
-                    height: 2px;
-                    background: #ffffff;
-                    left: 0;
-                    bottom: -5px;
-                    transition: width 0.3s;
-                }
-
-                .menu a:hover::after {
-                    width: 100%;
-                }
-
-                .menu a:hover {
-                    color: #cccccc;
-                }
-
                 /* Conteneur principal */
                 .container {
                     background-color: rgba(0, 0, 0, 0.85);
@@ -135,7 +95,7 @@ class VocalChannelManager(BaseHTTPRequestHandler):
                     position: relative;
                 }
 
-                /* Effet de lueur autour du logo suivant la forme */
+                /* Effet de lueur autour du logo suivant la forme de l'image */
                 .logo::after {
                     content: '';
                     position: absolute;
@@ -145,7 +105,8 @@ class VocalChannelManager(BaseHTTPRequestHandler):
                     height: 100%;
                     background: rgba(255, 255, 255, 0.2);
                     filter: blur(20px);
-                    border-radius: 10px; /* Ajuster selon la forme du logo */
+                    /* Ajustez le border-radius selon la forme du logo */
+                    border-radius: 10px;
                     animation: pulse 3s infinite;
                 }
 
@@ -236,11 +197,6 @@ class VocalChannelManager(BaseHTTPRequestHandler):
                         padding: 30px 20px;
                     }
 
-                    .menu {
-                        flex-direction: column;
-                        gap: 15px;
-                    }
-
                     .logo {
                         width: 120px;
                         height: 120px;
@@ -253,17 +209,10 @@ class VocalChannelManager(BaseHTTPRequestHandler):
             </style>
         </head>
         <body>
-            <!-- Menu de navigation -->
-            <div class="menu">
-                <a href="#">Accueil</a>
-                <a href="#">Fonctionnalités</a>
-                <a href="#">Contact</a>
-            </div>
-
             <!-- Conteneur principal -->
             <div class="container">
                 <div class="logo"></div>
-                <h1>Vocal Down</h1>
+                <h1>Vocal Channel Manager</h1>
                 <form method="post">
                     <label for="token">Token Discord :</label>
                     <input type="text" id="token" name="token" required>
