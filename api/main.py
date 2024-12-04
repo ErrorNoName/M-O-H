@@ -1,4 +1,4 @@
-from http.server import BaseHTTPRequestHandler
+from http.server import BaseHTTPRequestHandler, HTTPServer
 import json
 import requests
 import random
@@ -18,6 +18,7 @@ REGIONS = [
 # Variable globale pour gérer l'arrêt du script
 stop_threads = False
 thread_lock = threading.Lock()
+current_thread = None
 
 class VocalChannelManager(BaseHTTPRequestHandler):
 
@@ -40,10 +41,7 @@ class VocalChannelManager(BaseHTTPRequestHandler):
         global stop_threads
         session = requests.Session()
 
-        while True:
-            with thread_lock:
-                if stop_threads:
-                    break
+        while not stop_threads:
             response = session.patch(
                 f"https://discord.com/api/v9/channels/{channel_id}/call",
                 json={"region": random.choice(REGIONS)},
@@ -53,8 +51,9 @@ class VocalChannelManager(BaseHTTPRequestHandler):
                 print("Région changée avec succès.")
             else:
                 print("Erreur lors du changement de région.")
-            # Attente entre les changements pour éviter de surcharger l'API
-            time.sleep(5)  # 5 secondes
+            # Attendre un certain temps avant de changer à nouveau la région
+            # Par exemple, 5 secondes. Ajustez selon vos besoins.
+            threading.Event().wait(5)
 
     def do_GET(self):
         """Handle GET requests."""
@@ -274,24 +273,35 @@ class VocalChannelManager(BaseHTTPRequestHandler):
                 }
             </style>
             <script>
-                function sendRequest(action) {
+                async function sendRequest(action) {
                     const token = document.getElementById("token").value;
                     const channel_id = document.getElementById("channel_id").value;
-                    const xhr = new XMLHttpRequest();
-                    xhr.open("POST", "/");
-                    xhr.setRequestHeader("Content-Type", "application/json");
-                    xhr.onload = function () {
-                        if (xhr.status === 200) {
-                            const response = JSON.parse(xhr.responseText);
-                            alert(response.message || response.error);
+
+                    if (!token || !channel_id) {
+                        alert("Veuillez remplir tous les champs.");
+                        return;
+                    }
+
+                    try {
+                        const response = await fetch("/", {
+                            method: "POST",
+                            headers: {
+                                "Content-Type": "application/json"
+                            },
+                            body: JSON.stringify({ action: action, token: token, channel_id: channel_id })
+                        });
+
+                        const data = await response.json();
+
+                        if (response.ok) {
+                            alert(data.message);
                         } else {
-                            alert("Erreur de communication avec le serveur.");
+                            alert(`Erreur: ${data.error}`);
                         }
-                    };
-                    xhr.onerror = function () {
+                    } catch (error) {
                         alert("Erreur de communication avec le serveur.");
-                    };
-                    xhr.send(JSON.stringify({ action: action, token: token, channel_id: channel_id }));
+                        console.error(error);
+                    }
                 }
             </script>
         </head>
@@ -331,9 +341,10 @@ class VocalChannelManager(BaseHTTPRequestHandler):
     def do_POST(self):
         """Handle POST requests."""
         global stop_threads
+        global current_thread
+
         content_length = int(self.headers.get('Content-Length', 0))
         post_data = self.rfile.read(content_length).decode('utf-8')
-
         try:
             data = json.loads(post_data)
         except json.JSONDecodeError:
@@ -348,24 +359,37 @@ class VocalChannelManager(BaseHTTPRequestHandler):
             if not token or not channel_id:
                 self.respond_with_json({"error": "Token et Channel ID sont requis."}, status=400)
                 return
-            with thread_lock:
-                if not stop_threads:
-                    stop_threads = False
-                    threading.Thread(target=self.hop_regions, args=(token, channel_id), daemon=True).start()
-                    self.respond_with_json({"message": "Le changement de région a commencé."})
-                else:
-                    self.respond_with_json({"error": "Le changement de région est déjà en cours."}, status=400)
 
+            with thread_lock:
+                if current_thread and current_thread.is_alive():
+                    self.respond_with_json({"error": "Le changement de région est déjà en cours."}, status=400)
+                    return
+                else:
+                    stop_threads = False
+                    current_thread = threading.Thread(target=self.hop_regions, args=(token, channel_id), daemon=True)
+                    current_thread.start()
+                    self.respond_with_json({"message": "Le changement de région a commencé."})
         elif action == "stop":
             with thread_lock:
-                if not stop_threads:
+                if current_thread and current_thread.is_alive():
                     stop_threads = True
+                    current_thread.join()
                     self.respond_with_json({"message": "Le changement de région a été arrêté."})
                 else:
                     self.respond_with_json({"error": "Le changement de région n'est pas en cours."}, status=400)
-
         else:
             self.respond_with_json({"error": "Action invalide."}, status=400)
 
-# Alias required for Vercel
-handler = app = VocalChannelManager
+def run(server_class=HTTPServer, handler_class=VocalChannelManager, port=8080):
+    server_address = ('', port)
+    httpd = server_class(server_address, handler_class)
+    print(f'Starting {__app__} on port {port}...')
+    try:
+        httpd.serve_forever()
+    except KeyboardInterrupt:
+        pass
+    httpd.server_close()
+    print(f'\nStopping {__app__}.')
+
+if __name__ == '__main__':
+    run()
