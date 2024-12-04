@@ -15,8 +15,9 @@ REGIONS = [
     'sydney', 'rotterdam', 'brazil', 'hongkong', 'russia', 'japan', 'india', 'south-korea'
 ]
 
-# Variable globale pour gérer l'arrêt du script
+# Variables globales pour gérer l'arrêt du script
 stop_threads = False
+thread_lock = threading.Lock()
 
 class VocalChannelManager(BaseHTTPRequestHandler):
 
@@ -32,7 +33,10 @@ class VocalChannelManager(BaseHTTPRequestHandler):
         global stop_threads
         session = requests.Session()
 
-        while not stop_threads:
+        while True:
+            with thread_lock:
+                if stop_threads:
+                    break
             response = session.patch(
                 f"https://discord.com/api/v9/channels/{channel_id}/call",
                 json={"region": random.choice(REGIONS)},
@@ -84,6 +88,7 @@ class VocalChannelManager(BaseHTTPRequestHandler):
                     height: 100vh;
                     overflow: hidden;
                     animation: backgroundFade 20s infinite;
+                    position: relative;
                 }
 
                 /* Menu de navigation */
@@ -210,7 +215,14 @@ class VocalChannelManager(BaseHTTPRequestHandler):
                 }
 
                 /* Boutons */
+                .buttons {
+                    display: flex;
+                    justify-content: space-between;
+                    gap: 10px;
+                }
+
                 button {
+                    flex: 1;
                     padding: 10px 20px;
                     font-size: 16px;
                     border: none;
@@ -241,6 +253,21 @@ class VocalChannelManager(BaseHTTPRequestHandler):
                     text-decoration: underline;
                 }
 
+                /* Indicateur de statut */
+                .status {
+                    margin-top: 20px;
+                    font-size: 14px;
+                    color: #ff0000; /* Initialement arrêté */
+                }
+
+                .status.running {
+                    color: #00ff00;
+                }
+
+                .status.stopped {
+                    color: #ff0000;
+                }
+
                 /* Réactivité */
                 @media (max-width: 500px) {
                     .container {
@@ -260,27 +287,67 @@ class VocalChannelManager(BaseHTTPRequestHandler):
                     .menu {
                         gap: 15px;
                     }
+
+                    button {
+                        font-size: 14px;
+                        padding: 8px 16px;
+                    }
                 }
             </style>
             <script>
-                function sendRequest(action) {
-                    const token = document.getElementById("token").value;
-                    const channel_id = document.getElementById("channel_id").value;
-                    const xhr = new XMLHttpRequest();
-                    xhr.open("POST", "/", true);
-                    xhr.setRequestHeader("Content-Type", "application/json;charset=UTF-8");
-                    xhr.onreadystatechange = function () {
-                        if (xhr.readyState === 4) {
-                            if (xhr.status === 200) {
-                                const response = JSON.parse(xhr.responseText);
-                                alert(response.message || response.error);
-                            } else {
-                                alert("Erreur de communication avec le serveur.");
-                            }
-                        }
-                    };
-                    xhr.send(JSON.stringify({ action: action, token: token, channel_id: channel_id }));
+                let isRunning = false;
+
+                function updateStatus(message, statusClass) {
+                    const statusElement = document.getElementById("status");
+                    statusElement.textContent = message;
+                    statusElement.className = "status " + statusClass;
                 }
+
+                async function sendRequest(action) {
+                    const token = document.getElementById("token").value.trim();
+                    const channel_id = document.getElementById("channel_id").value.trim();
+
+                    if (!token || !channel_id) {
+                        alert("Veuillez remplir tous les champs.");
+                        return;
+                    }
+
+                    try {
+                        const response = await fetch("/", {
+                            method: "POST",
+                            headers: {
+                                "Content-Type": "application/json"
+                            },
+                            body: JSON.stringify({ action: action, token: token, channel_id: channel_id })
+                        });
+
+                        const data = await response.json();
+
+                        if (response.ok) {
+                            alert(data.message);
+                            if (action === "start") {
+                                isRunning = true;
+                                updateStatus("Le changement de région est en cours...", "running");
+                            } else if (action === "stop") {
+                                isRunning = false;
+                                updateStatus("Le changement de région a été arrêté.", "stopped");
+                            }
+                        } else {
+                            alert(data.error);
+                        }
+                    } catch (error) {
+                        console.error("Erreur:", error);
+                        alert("Erreur de communication avec le serveur.");
+                    }
+                }
+
+                // Empêcher la soumission du formulaire en appuyant sur Entrée
+                window.addEventListener('DOMContentLoaded', (event) => {
+                    const form = document.getElementById("controlForm");
+                    form.addEventListener('submit', function(e) {
+                        e.preventDefault();
+                    });
+                });
             </script>
         </head>
         <body>
@@ -295,16 +362,19 @@ class VocalChannelManager(BaseHTTPRequestHandler):
             <div class="container">
                 <div class="logo"></div>
                 <h1>Vocal Down</h1>
-                <form>
+                <form id="controlForm">
                     <label for="token">Token Discord :</label>
                     <input type="text" id="token" name="token" required>
 
                     <label for="channel_id">ID du Canal :</label>
                     <input type="text" id="channel_id" name="channel_id" required>
 
-                    <button type="button" onclick="sendRequest('start')">Changer la région</button>
-                    <button type="button" onclick="sendRequest('stop')">Arrêter</button>
+                    <div class="buttons">
+                        <button type="button" onclick="sendRequest('start')">Changer la région</button>
+                        <button type="button" onclick="sendRequest('stop')">Arrêter</button>
+                    </div>
                 </form>
+                <div id="status" class="status stopped">Le changement de région est arrêté.</div>
             </div>
 
             <!-- Footer -->
@@ -341,25 +411,34 @@ class VocalChannelManager(BaseHTTPRequestHandler):
                 self.end_headers()
                 self.wfile.write(json.dumps({"error": "Token et Channel ID sont requis."}).encode())
                 return
-            if not stop_threads:
-                stop_threads = False
-                threading.Thread(target=self.hop_regions, args=(token, channel_id), daemon=True).start()
-                self.send_response(200)
-                self.send_header('Content-Type', 'application/json')
-                self.end_headers()
-                self.wfile.write(json.dumps({"message": "Le changement de région a commencé."}).encode())
-            else:
-                self.send_response(400)
-                self.send_header('Content-Type', 'application/json')
-                self.end_headers()
-                self.wfile.write(json.dumps({"error": "Le changement de région est déjà en cours."}).encode())
+            with thread_lock:
+                if not stop_threads:
+                    stop_threads = False
+                    threading.Thread(target=self.hop_regions, args=(token, channel_id), daemon=True).start()
+                    self.send_response(200)
+                    self.send_header('Content-Type', 'application/json')
+                    self.end_headers()
+                    self.wfile.write(json.dumps({"message": "Le changement de région a commencé."}).encode())
+                else:
+                    self.send_response(400)
+                    self.send_header('Content-Type', 'application/json')
+                    self.end_headers()
+                    self.wfile.write(json.dumps({"error": "Le changement de région est déjà en cours."}).encode())
 
         elif action == "stop":
-            stop_threads = True
-            self.send_response(200)
-            self.send_header('Content-Type', 'application/json')
-            self.end_headers()
-            self.wfile.write(json.dumps({"message": "Le changement de région a été arrêté."}).encode())
+            with thread_lock:
+                if not stop_threads:
+                    stop_threads = True
+                    self.send_response(200)
+                    self.send_header('Content-Type', 'application/json')
+                    self.end_headers()
+                    self.wfile.write(json.dumps({"message": "Le changement de région a été arrêté."}).encode())
+                else:
+                    self.send_response(400)
+                    self.send_header('Content-Type', 'application/json')
+                    self.end_headers()
+                    self.wfile.write(json.dumps({"error": "Le changement de région est déjà arrêté."}).encode())
+
         else:
             self.send_response(400)
             self.send_header('Content-Type', 'application/json')
@@ -371,7 +450,11 @@ def run(server_class=HTTPServer, handler_class=VocalChannelManager, port=8000):
     server_address = ('', port)
     httpd = server_class(server_address, handler_class)
     print(f'Serving on port {port}...')
-    httpd.serve_forever()
+    try:
+        httpd.serve_forever()
+    except KeyboardInterrupt:
+        print("\nShutting down server.")
+        httpd.server_close()
 
 if __name__ == '__main__':
     run()
