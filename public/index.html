@@ -247,7 +247,9 @@
                 alert("Veuillez sélectionner un intervalle valide.");
                 return;
             }
+            // Démarrer le changement de région
             sendRequest('start');
+            // Configurer l'intervalle
             intervalId = setInterval(() => {
                 sendRequest('change');
             }, selectedValue * 60 * 1000); // Convertir minutes en millisecondes
