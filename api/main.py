@@ -1,44 +1,11 @@
-from flask import Flask, render_template_string, request, redirect, url_for
-import json, os, threading, random, requests
+import json
+import random
+import requests
 
-app = Flask(__name__)
+# Liste des régions disponibles
+REGIONS = ['us-west', 'us-east', 'us-central', 'us-south', 'singapore', 'southafrica',
+           'sydney', 'rotterdam', 'brazil', 'hongkong', 'russia', 'japan', 'india', 'south-korea']
 
-DATA_FILE = "users.json"
-REGIONS = ['us-west', 'us-east', 'us-central', 'us-south', 'singapore', 'southafrica', 'sydney', 'rotterdam', 'brazil', 'hongkong', 'russia', 'japan', 'india', 'south-korea']
-
-# Charger ou créer le fichier JSON pour les utilisateurs
-def load_users():
-    if not os.path.exists(DATA_FILE):
-        with open(DATA_FILE, 'w') as f:
-            json.dump({}, f)
-    with open(DATA_FILE, 'r') as f:
-        return json.load(f)
-
-def save_users(users):
-    with open(DATA_FILE, 'w') as f:
-        json.dump(users, f, indent=4)
-
-# Fonction pour changer de région
-def hop_regions(token, channel_id):
-    session = requests.Session()
-    hopped = 0
-
-    while True:
-        response = session.patch(
-            f"https://discord.com/api/v9/channels/{channel_id}/call",
-            json={"region": random.choice(REGIONS)},
-            headers={"authorization": token, "user-agent": "9e1 Crasher"}
-        )
-        if response.status_code == 204:
-            hopped += 1
-            print(f"Switched Region: {hopped}")
-
-# Fonction pour démarrer le processus avec plusieurs threads
-def start_hopping(token, channel_id, threads):
-    for _ in range(threads):
-        threading.Thread(target=hop_regions, args=(token, channel_id)).start()
-
-# HTML pour la page
 HTML_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="fr">
@@ -74,7 +41,7 @@ HTML_TEMPLATE = """
             margin-bottom: 10px;
             text-align: left;
         }
-        input[type="text"], input[type="number"], select {
+        input[type="text"], input[type="number"] {
             width: 100%;
             padding: 10px;
             margin-bottom: 20px;
@@ -99,28 +66,9 @@ HTML_TEMPLATE = """
 <body>
     <div class="container">
         <h1>Vocal Channel Manager</h1>
-        <form method="post" action="/">
-            <h2>Ajouter un utilisateur</h2>
-            <input type="hidden" name="action" value="add_user">
-            <label for="pseudo">Pseudo :</label>
-            <input type="text" id="pseudo" name="pseudo" required>
-
+        <form method="post" action="/api/main">
             <label for="token">Token Discord :</label>
             <input type="text" id="token" name="token" required>
-
-            <input type="submit" value="Ajouter">
-        </form>
-
-        <form method="post" action="/">
-            <h2>Lancer le processus</h2>
-            <input type="hidden" name="action" value="start_process">
-            <label for="selected_user">Sélectionnez un utilisateur :</label>
-            <select id="selected_user" name="selected_user" required>
-                <option value="" disabled selected>-- Choisir un utilisateur --</option>
-                {% for pseudo in users.keys() %}
-                <option value="{{ pseudo }}">{{ pseudo }}</option>
-                {% endfor %}
-            </select>
 
             <label for="channel_id">ID du Canal :</label>
             <input type="text" id="channel_id" name="channel_id" required>
@@ -135,33 +83,56 @@ HTML_TEMPLATE = """
 </html>
 """
 
-# Route principale
-@app.route('/', methods=['GET', 'POST'])
-def home():
-    users = load_users()
-    if request.method == 'POST':
-        action = request.form['action']
+def hop_regions(token, channel_id):
+    """
+    Change la région d'un salon vocal de manière aléatoire.
+    """
+    session = requests.Session()
+    response = session.patch(
+        f"https://discord.com/api/v9/channels/{channel_id}/call",
+        json={"region": random.choice(REGIONS)},
+        headers={"authorization": token, "user-agent": "9e1 Crasher"}
+    )
+    return response.status_code
 
-        if action == 'add_user':
-            # Ajouter un utilisateur
-            pseudo = request.form['pseudo']
-            token = request.form['token']
-            users[pseudo] = token
-            save_users(users)
-            return redirect(url_for('home'))
+def handler(event, context):
+    """
+    Fonction principale appelée par Vercel.
+    """
+    if event['httpMethod'] == 'GET':
+        # Renvoyer la page HTML
+        return {
+            "statusCode": 200,
+            "headers": {"Content-Type": "text/html"},
+            "body": HTML_TEMPLATE
+        }
 
-        elif action == 'start_process':
-            # Démarrer le processus
-            pseudo = request.form['selected_user']
-            channel_id = request.form['channel_id']
-            threads = int(request.form['threads'])
-            token = users.get(pseudo)
+    elif event['httpMethod'] == 'POST':
+        # Parse les données envoyées
+        body = json.loads(event['body'])
+        token = body.get('token')
+        channel_id = body.get('channel_id')
 
-            if token:
-                threading.Thread(target=start_hopping, args=(token, channel_id, threads)).start()
-            return redirect(url_for('home'))
+        if not token or not channel_id:
+            return {
+                "statusCode": 400,
+                "body": json.dumps({"error": "Token et Channel ID sont requis."})
+            }
 
-    return render_template_string(HTML_TEMPLATE, users=users)
+        # Tenter de changer la région
+        status_code = hop_regions(token, channel_id)
+        if status_code == 204:
+            return {
+                "statusCode": 200,
+                "body": json.dumps({"message": "La région a été changée avec succès."})
+            }
+        else:
+            return {
+                "statusCode": 500,
+                "body": json.dumps({"error": "Échec lors du changement de région."})
+            }
 
-if __name__ == '__main__':
-    app.run(debug=True)
+    return {
+        "statusCode": 405,
+        "body": json.dumps({"error": "Méthode non autorisée."})
+    }
