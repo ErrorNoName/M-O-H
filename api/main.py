@@ -40,7 +40,7 @@ class VocalChannelManager(BaseHTTPRequestHandler):
         <html lang="fr">
         <head>
             <meta charset="UTF-8">
-            <title>Vocal Channel Manager</title>
+            <title>Vocal Down</title>
             <style>
                 /* Animation de fond fade subtil entre noir et gris foncé */
                 @keyframes backgroundFade {
@@ -52,7 +52,7 @@ class VocalChannelManager(BaseHTTPRequestHandler):
                 /* Effet typewriter pour le titre */
                 @keyframes typewriter {
                     from { width: 0; }
-                    to { width: 22ch; }
+                    to { width: 10ch; } /* Ajusté pour "Vocal Down" */
                 }
 
                 @keyframes blink {
@@ -72,6 +72,44 @@ class VocalChannelManager(BaseHTTPRequestHandler):
                     height: 100vh;
                     overflow: hidden;
                     animation: backgroundFade 20s infinite;
+                }
+
+                /* Menu de navigation */
+                .menu {
+                    position: absolute;
+                    top: 20px;
+                    left: 50%;
+                    transform: translateX(-50%);
+                    display: flex;
+                    gap: 30px;
+                }
+
+                .menu a {
+                    color: #ffffff;
+                    text-decoration: none;
+                    font-size: 18px;
+                    position: relative;
+                    padding: 5px 0;
+                    transition: color 0.3s;
+                }
+
+                .menu a::after {
+                    content: '';
+                    position: absolute;
+                    width: 0;
+                    height: 2px;
+                    background: #ffffff;
+                    left: 0;
+                    bottom: -5px;
+                    transition: width 0.3s;
+                }
+
+                .menu a:hover::after {
+                    width: 100%;
+                }
+
+                .menu a:hover {
+                    color: #cccccc;
                 }
 
                 /* Conteneur principal */
@@ -126,7 +164,7 @@ class VocalChannelManager(BaseHTTPRequestHandler):
                     white-space: nowrap;
                     margin: 0 auto 20px;
                     letter-spacing: 2px;
-                    animation: typewriter 4s steps(22) 1s forwards, blink 0.75s step-end infinite;
+                    animation: typewriter 4s steps(10) 1s forwards, blink 0.75s step-end infinite;
                     width: 0;
                 }
 
@@ -209,10 +247,17 @@ class VocalChannelManager(BaseHTTPRequestHandler):
             </style>
         </head>
         <body>
+            <!-- Menu de navigation -->
+            <div class="menu">
+                <a href="#">Accueil</a>
+                <a href="#">Fonctionnalités</a>
+                <a href="#">Contact</a>
+            </div>
+
             <!-- Conteneur principal -->
             <div class="container">
                 <div class="logo"></div>
-                <h1>Vocal Channel Manager</h1>
+                <h1>Vocal Down</h1>
                 <form method="post">
                     <label for="token">Token Discord :</label>
                     <input type="text" id="token" name="token" required>
