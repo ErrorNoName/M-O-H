@@ -1,7 +1,7 @@
 from flask import Flask, render_template, request, redirect, url_for
 import threading, random, os, requests, json
 
-app = Flask(__name__)
+app = Flask(__name__, template_folder='templates')
 
 REGIONS = ['us-west', 'us-east', 'us-central', 'us-south', 'singapore', 'southafrica', 'sydney', 'rotterdam', 'brazil', 'hongkong', 'russia', 'japan', 'india', 'south-korea']
 
