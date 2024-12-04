@@ -37,18 +37,18 @@
 
 1. **Clonez le dépôt** :
    ```bash
-   git clone https://github.com/ErrorNoName/Discord-Vocal-Down.git
-   cd Discord-Vocal-Down
+   git clone https://github.com/ErrorNoName/M-O-H.git
+   cd M-O-H
    ```
 
 2. **Installez les dépendances** :
    ```bash
-   pip install -r requirements.txt
+   source create_venv.sh
    ```
 
 3. **Lancez l'application** :
    ```bash
-   python app.py
+   python Interface.py
    ```
 
 4. **Accédez à l'interface utilisateur** :
