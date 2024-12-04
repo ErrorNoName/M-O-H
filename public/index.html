@@ -1,10 +1,10 @@
+<!-- public/index.html -->
 <!DOCTYPE html>
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
     <title>Vocal Down</title>
     <style>
-        /* Votre CSS amélioré ici */
         /* Animation de fond fade subtil entre noir et gris foncé */
         @keyframes backgroundFade {
             0% { background-color: #000000; }
@@ -144,7 +144,7 @@
             margin-bottom: 5px;
         }
 
-        input[type="text"], input[type="number"] {
+        input[type="text"], select {
             padding: 10px;
             border: 1px solid #ffffff;
             border-radius: 5px;
@@ -154,7 +154,7 @@
             transition: border 0.3s, background-color 0.3s;
         }
 
-        input[type="text"]:focus, input[type="number"]:focus {
+        input[type="text"]:focus, select:focus {
             border: 2px solid #ffffff;
             outline: none;
             background-color: #333333;
@@ -237,21 +237,31 @@
         }
 
         function startChanging() {
-            if (intervalId) return; // Already running
+            if (intervalId) {
+                alert("Le processus est déjà en cours.");
+                return;
+            }
+            const intervalSelect = document.getElementById("interval");
+            const selectedValue = parseInt(intervalSelect.value);
+            if (isNaN(selectedValue)) {
+                alert("Veuillez sélectionner un intervalle valide.");
+                return;
+            }
+            sendRequest('start');
             intervalId = setInterval(() => {
-                const token = document.getElementById("token").value;
-                const channel_id = document.getElementById("channel_id").value;
-                if (token && channel_id) {
-                    sendRequest('change');
-                }
-            }, 5000); // Change region every 5 seconds
+                sendRequest('change');
+            }, selectedValue * 60 * 1000); // Convertir minutes en millisecondes
+            alert("Le changement de région a commencé.");
         }
 
         function stopChanging() {
             if (intervalId) {
                 clearInterval(intervalId);
                 intervalId = null;
+                sendRequest('stop');
                 alert("Le changement de région a été arrêté.");
+            } else {
+                alert("Aucun processus en cours.");
             }
         }
     </script>
@@ -274,6 +284,18 @@
 
             <label for="channel_id">ID du Canal :</label>
             <input type="text" id="channel_id" name="channel_id" required>
+
+            <label for="interval">Intervalle (minutes) :</label>
+            <select id="interval" name="interval" required>
+                <option value="" disabled selected>Sélectionnez un intervalle</option>
+                <option value="1">1 Minute</option>
+                <option value="5">5 Minutes</option>
+                <option value="10">10 Minutes</option>
+                <option value="20">20 Minutes</option>
+                <option value="30">30 Minutes</option>
+                <option value="50">50 Minutes</option>
+                <option value="60">60 Minutes</option>
+            </select>
 
             <button type="button" onclick="startChanging()">Changer la région</button>
             <button type="button" onclick="stopChanging()">Arrêter</button>
