@@ -1,8 +1,7 @@
-from http.server import BaseHTTPRequestHandler, HTTPServer
+from http.server import BaseHTTPRequestHandler
 import json
 import requests
 import random
-import threading
 
 __app__ = "Discord Vocal Down"
 __description__ = "A simple application which allows you to Down Voice Call By ErrorNoName/Ezio"
@@ -15,10 +14,6 @@ REGIONS = [
     'sydney', 'rotterdam', 'brazil', 'hongkong', 'russia', 'japan', 'india', 'south-korea'
 ]
 
-# Variables globales pour gérer l'arrêt du script
-stop_threads = False
-thread_lock = threading.Lock()
-
 class VocalChannelManager(BaseHTTPRequestHandler):
 
     def respond_with_html(self, html):
@@ -29,25 +24,14 @@ class VocalChannelManager(BaseHTTPRequestHandler):
         self.wfile.write(html.encode())
 
     def hop_regions(self, token, channel_id):
-        """Change the voice channel region in a loop."""
-        global stop_threads
+        """Change the voice channel region."""
         session = requests.Session()
-
-        while True:
-            with thread_lock:
-                if stop_threads:
-                    break
-            response = session.patch(
-                f"https://discord.com/api/v9/channels/{channel_id}/call",
-                json={"region": random.choice(REGIONS)},
-                headers={"authorization": token, "user-agent": "VocalChannelManager"}
-            )
-            if response.status_code == 204:
-                print("Région changée avec succès.")
-            else:
-                print("Erreur lors du changement de région.")
-            # Attendre quelques secondes avant de changer à nouveau
-            threading.Event().wait(5)  # Attente de 5 secondes
+        response = session.patch(
+            f"https://discord.com/api/v9/channels/{channel_id}/call",
+            json={"region": random.choice(REGIONS)},
+            headers={"authorization": token, "user-agent": "VocalChannelManager"}
+        )
+        return response.status_code
 
     def do_GET(self):
         """Handle GET requests."""
@@ -68,7 +52,7 @@ class VocalChannelManager(BaseHTTPRequestHandler):
                 /* Effet typewriter pour le titre */
                 @keyframes typewriter {
                     from { width: 0; }
-                    to { width: 10ch; } /* "Vocal Down" a 10 caractères */
+                    to { width: 10ch; } /* Ajusté pour "Vocal Down" */
                 }
 
                 @keyframes blink {
@@ -88,7 +72,6 @@ class VocalChannelManager(BaseHTTPRequestHandler):
                     height: 100vh;
                     overflow: hidden;
                     animation: backgroundFade 20s infinite;
-                    position: relative;
                 }
 
                 /* Menu de navigation */
@@ -161,7 +144,7 @@ class VocalChannelManager(BaseHTTPRequestHandler):
                     background: rgba(255, 255, 255, 0.2);
                     filter: blur(20px);
                     /* Ajustez le border-radius selon la forme du logo */
-                    border-radius: 20%; /* Exemple pour une forme non circulaire */
+                    border-radius: 10px;
                     animation: pulse 3s infinite;
                 }
 
@@ -174,7 +157,7 @@ class VocalChannelManager(BaseHTTPRequestHandler):
 
                 /* Titre avec effet typewriter */
                 h1 {
-                    font-size: 28px;
+                    font-size: 24px;
                     margin-bottom: 30px;
                     overflow: hidden;
                     border-right: 2px solid #ffffff;
@@ -214,26 +197,18 @@ class VocalChannelManager(BaseHTTPRequestHandler):
                     background-color: #333333;
                 }
 
-                /* Boutons */
-                .buttons {
-                    display: flex;
-                    justify-content: space-between;
-                    gap: 10px;
-                }
-
-                button {
-                    flex: 1;
-                    padding: 10px 20px;
-                    font-size: 16px;
+                input[type="submit"] {
+                    padding: 10px;
                     border: none;
                     border-radius: 5px;
                     background-color: #ffffff;
                     color: #000000;
+                    font-size: 16px;
                     cursor: pointer;
                     transition: background-color 0.3s, transform 0.3s;
                 }
 
-                button:hover {
+                input[type="submit"]:hover {
                     background-color: #e0e0e0;
                     transform: scale(1.05);
                 }
@@ -253,21 +228,6 @@ class VocalChannelManager(BaseHTTPRequestHandler):
                     text-decoration: underline;
                 }
 
-                /* Indicateur de statut */
-                .status {
-                    margin-top: 20px;
-                    font-size: 14px;
-                    color: #ff0000; /* Initialement arrêté */
-                }
-
-                .status.running {
-                    color: #00ff00;
-                }
-
-                .status.stopped {
-                    color: #ff0000;
-                }
-
                 /* Réactivité */
                 @media (max-width: 500px) {
                     .container {
@@ -283,72 +243,8 @@ class VocalChannelManager(BaseHTTPRequestHandler):
                     h1 {
                         font-size: 20px;
                     }
-
-                    .menu {
-                        gap: 15px;
-                    }
-
-                    button {
-                        font-size: 14px;
-                        padding: 8px 16px;
-                    }
                 }
             </style>
-            <script>
-                let isRunning = false;
-
-                function updateStatus(message, statusClass) {
-                    const statusElement = document.getElementById("status");
-                    statusElement.textContent = message;
-                    statusElement.className = "status " + statusClass;
-                }
-
-                async function sendRequest(action) {
-                    const token = document.getElementById("token").value.trim();
-                    const channel_id = document.getElementById("channel_id").value.trim();
-
-                    if (!token || !channel_id) {
-                        alert("Veuillez remplir tous les champs.");
-                        return;
-                    }
-
-                    try {
-                        const response = await fetch("/", {
-                            method: "POST",
-                            headers: {
-                                "Content-Type": "application/json"
-                            },
-                            body: JSON.stringify({ action: action, token: token, channel_id: channel_id })
-                        });
-
-                        const data = await response.json();
-
-                        if (response.ok) {
-                            alert(data.message);
-                            if (action === "start") {
-                                isRunning = true;
-                                updateStatus("Le changement de région est en cours...", "running");
-                            } else if (action === "stop") {
-                                isRunning = false;
-                                updateStatus("Le changement de région a été arrêté.", "stopped");
-                            }
-                        } else {
-                            alert(data.error);
-                        }
-                    } catch (error) {
-                        console.error("Erreur:", error);
-                        alert("Erreur de communication avec le serveur.");
-                    }
-                }
-
-                // Empêcher la soumission du formulaire en appuyant sur Entrée
-                window.addEventListener('DOMContentLoaded', (event) => {
-                    const form = document.getElementById("controlForm");
-                    form.addEventListener('submit', function(e) {
-                        e.preventDefault();
-                    });
-                });
-            </script>
         </head>
         <body>
             <!-- Menu de navigation -->
@@ -362,19 +258,15 @@ class VocalChannelManager(BaseHTTPRequestHandler):
             <div class="container">
                 <div class="logo"></div>
                 <h1>Vocal Down</h1>
-                <form id="controlForm">
+                <form method="post">
                     <label for="token">Token Discord :</label>
                     <input type="text" id="token" name="token" required>
 
                     <label for="channel_id">ID du Canal :</label>
                     <input type="text" id="channel_id" name="channel_id" required>
 
-                    <div class="buttons">
-                        <button type="button" onclick="sendRequest('start')">Changer la région</button>
-                        <button type="button" onclick="sendRequest('stop')">Arrêter</button>
-                    </div>
+                    <input type="submit" value="Changer la région">
                 </form>
-                <div id="status" class="status stopped">Le changement de région est arrêté.</div>
             </div>
 
             <!-- Footer -->
@@ -388,73 +280,32 @@ class VocalChannelManager(BaseHTTPRequestHandler):
 
     def do_POST(self):
         """Handle POST requests."""
-        global stop_threads
         content_length = int(self.headers.get('Content-Length', 0))
         post_data = self.rfile.read(content_length).decode('utf-8')
-        try:
-            data = json.loads(post_data)
-        except json.JSONDecodeError:
-            self.send_response(400)
-            self.send_header('Content-Type', 'application/json')
-            self.end_headers()
-            self.wfile.write(json.dumps({"error": "Données invalides."}).encode())
-            return
+        data = dict(x.split('=') for x in post_data.split('&'))
 
-        action = data.get('action')
         token = data.get('token')
         channel_id = data.get('channel_id')
 
-        if action == "start":
-            if not token or not channel_id:
-                self.send_response(400)
-                self.send_header('Content-Type', 'application/json')
-                self.end_headers()
-                self.wfile.write(json.dumps({"error": "Token et Channel ID sont requis."}).encode())
-                return
-            with thread_lock:
-                if not stop_threads:
-                    stop_threads = False
-                    threading.Thread(target=self.hop_regions, args=(token, channel_id), daemon=True).start()
-                    self.send_response(200)
-                    self.send_header('Content-Type', 'application/json')
-                    self.end_headers()
-                    self.wfile.write(json.dumps({"message": "Le changement de région a commencé."}).encode())
-                else:
-                    self.send_response(400)
-                    self.send_header('Content-Type', 'application/json')
-                    self.end_headers()
-                    self.wfile.write(json.dumps({"error": "Le changement de région est déjà en cours."}).encode())
-
-        elif action == "stop":
-            with thread_lock:
-                if not stop_threads:
-                    stop_threads = True
-                    self.send_response(200)
-                    self.send_header('Content-Type', 'application/json')
-                    self.end_headers()
-                    self.wfile.write(json.dumps({"message": "Le changement de région a été arrêté."}).encode())
-                else:
-                    self.send_response(400)
-                    self.send_header('Content-Type', 'application/json')
-                    self.end_headers()
-                    self.wfile.write(json.dumps({"error": "Le changement de région est déjà arrêté."}).encode())
-
-        else:
+        if not token or not channel_id:
             self.send_response(400)
             self.send_header('Content-Type', 'application/json')
             self.end_headers()
-            self.wfile.write(json.dumps({"error": "Action invalide."}).encode())
+            self.wfile.write(json.dumps({"error": "Token et Channel ID sont requis."}).encode())
+            return
 
-# Configuration du serveur
-def run(server_class=HTTPServer, handler_class=VocalChannelManager, port=8000):
-    server_address = ('', port)
-    httpd = server_class(server_address, handler_class)
-    print(f'Serving on port {port}...')
-    try:
-        httpd.serve_forever()
-    except KeyboardInterrupt:
-        print("\nShutting down server.")
-        httpd.server_close()
+        # Change region
+        status_code = self.hop_regions(token, channel_id)
+        if status_code == 204:
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/json')
+            self.end_headers()
+            self.wfile.write(json.dumps({"message": "La région a été changée avec succès."}).encode())
+        else:
+            self.send_response(500)
+            self.send_header('Content-Type', 'application/json')
+            self.end_headers()
+            self.wfile.write(json.dumps({"error": "Échec lors du changement de région."}).encode())
 
-if __name__ == '__main__':
-    run()
+# Alias required for Vercel
+handler = app = VocalChannelManager
