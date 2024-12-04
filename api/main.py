@@ -1,7 +1,7 @@
+from http.server import BaseHTTPRequestHandler
 import json
 import requests
 import random
-import threading
 
 __app__ = "Discord Vocal Down"
 __description__ = "A simple application which allows you to Down Voice Call By ErrorNoName/Ezio"
@@ -14,33 +14,27 @@ REGIONS = [
     'sydney', 'rotterdam', 'brazil', 'hongkong', 'russia', 'japan', 'india', 'south-korea'
 ]
 
-# Variable globale pour gérer l'arrêt du script
-stop_threads = False
+class VocalChannelManager(BaseHTTPRequestHandler):
 
-def hop_regions(token, channel_id):
-    """Change the voice channel region in a loop."""
-    global stop_threads
-    session = requests.Session()
+    def respond_with_html(self, html):
+        """Respond with HTML content."""
+        self.send_response(200)
+        self.send_header('Content-Type', 'text/html')
+        self.end_headers()
+        self.wfile.write(html.encode())
 
-    while not stop_threads:
+    def hop_regions(self, token, channel_id):
+        """Change the voice channel region."""
+        session = requests.Session()
         response = session.patch(
             f"https://discord.com/api/v9/channels/{channel_id}/call",
             json={"region": random.choice(REGIONS)},
             headers={"authorization": token, "user-agent": "VocalChannelManager"}
         )
-        if response.status_code == 204:
-            print("Région changée avec succès.")
-        else:
-            print("Erreur lors du changement de région.")
+        return response.status_code
 
-def handler(event, context):
-    """Handler for Vercel requests."""
-    global stop_threads
-
-    # Vérifie la méthode de la requête
-    method = event["httpMethod"]
-    if method == "GET":
-        # Retourne le HTML
+    def do_GET(self):
+        """Handle GET requests."""
         html = """
         <!DOCTYPE html>
         <html lang="fr">
@@ -58,7 +52,7 @@ def handler(event, context):
                 /* Effet typewriter pour le titre */
                 @keyframes typewriter {
                     from { width: 0; }
-                    to { width: 10ch; } /* "Vocal Down" a 10 caractères */
+                    to { width: 10ch; } /* Ajusté pour "Vocal Down" */
                 }
 
                 @keyframes blink {
@@ -78,7 +72,6 @@ def handler(event, context):
                     height: 100vh;
                     overflow: hidden;
                     animation: backgroundFade 20s infinite;
-                    position: relative;
                 }
 
                 /* Menu de navigation */
@@ -151,7 +144,7 @@ def handler(event, context):
                     background: rgba(255, 255, 255, 0.2);
                     filter: blur(20px);
                     /* Ajustez le border-radius selon la forme du logo */
-                    border-radius: 20%; /* Exemple pour une forme non circulaire */
+                    border-radius: 10px;
                     animation: pulse 3s infinite;
                 }
 
@@ -164,7 +157,7 @@ def handler(event, context):
 
                 /* Titre avec effet typewriter */
                 h1 {
-                    font-size: 28px;
+                    font-size: 24px;
                     margin-bottom: 30px;
                     overflow: hidden;
                     border-right: 2px solid #ffffff;
@@ -204,19 +197,18 @@ def handler(event, context):
                     background-color: #333333;
                 }
 
-                /* Boutons */
-                button {
-                    padding: 10px 20px;
-                    font-size: 16px;
+                input[type="submit"] {
+                    padding: 10px;
                     border: none;
                     border-radius: 5px;
                     background-color: #ffffff;
                     color: #000000;
+                    font-size: 16px;
                     cursor: pointer;
                     transition: background-color 0.3s, transform 0.3s;
                 }
 
-                button:hover {
+                input[type="submit"]:hover {
                     background-color: #e0e0e0;
                     transform: scale(1.05);
                 }
@@ -251,26 +243,8 @@ def handler(event, context):
                     h1 {
                         font-size: 20px;
                     }
-
-                    .menu {
-                        gap: 15px;
-                    }
                 }
             </style>
-            <script>
-                function sendRequest(action) {
-                    const token = document.getElementById("token").value;
-                    const channel_id = document.getElementById("channel_id").value;
-                    fetch("/", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ action, token, channel_id })
-                    })
-                    .then(response => response.json())
-                    .then(data => alert(data.message || data.error))
-                    .catch(err => alert("Erreur de communication avec le serveur."));
-                }
-            </script>
         </head>
         <body>
             <!-- Menu de navigation -->
@@ -284,15 +258,14 @@ def handler(event, context):
             <div class="container">
                 <div class="logo"></div>
                 <h1>Vocal Down</h1>
-                <form>
+                <form method="post">
                     <label for="token">Token Discord :</label>
                     <input type="text" id="token" name="token" required>
 
                     <label for="channel_id">ID du Canal :</label>
                     <input type="text" id="channel_id" name="channel_id" required>
 
-                    <button type="button" onclick="sendRequest('start')">Changer la région</button>
-                    <button type="button" onclick="sendRequest('stop')">Arrêter</button>
+                    <input type="submit" value="Changer la région">
                 </form>
             </div>
 
@@ -303,51 +276,36 @@ def handler(event, context):
         </body>
         </html>
         """
-        return {
-            "statusCode": 200,
-            "headers": {"Content-Type": "text/html"},
-            "body": html
-        }
+        self.respond_with_html(html)
 
-    elif method == "POST":
-        # Traite les requêtes POST
-        body = json.loads(event["body"])
-        action = body.get("action")
-        token = body.get("token")
-        channel_id = body.get("channel_id")
+    def do_POST(self):
+        """Handle POST requests."""
+        content_length = int(self.headers.get('Content-Length', 0))
+        post_data = self.rfile.read(content_length).decode('utf-8')
+        data = dict(x.split('=') for x in post_data.split('&'))
 
-        if action == "start":
-            if not token or not channel_id:
-                return {
-                    "statusCode": 400,
-                    "body": json.dumps({"error": "Token et Channel ID sont requis."})
-                }
-            if not stop_threads:
-                stop_threads = False
-                threading.Thread(target=hop_regions, args=(token, channel_id), daemon=True).start()
-                return {
-                    "statusCode": 200,
-                    "body": json.dumps({"message": "Le changement de région a commencé."})
-                }
-            else:
-                return {
-                    "statusCode": 400,
-                    "body": json.dumps({"error": "Le changement de région est déjà en cours."})
-                }
+        token = data.get('token')
+        channel_id = data.get('channel_id')
 
-        elif action == "stop":
-            stop_threads = True
-            return {
-                "statusCode": 200,
-                "body": json.dumps({"message": "Le changement de région a été arrêté."})
-            }
+        if not token or not channel_id:
+            self.send_response(400)
+            self.send_header('Content-Type', 'application/json')
+            self.end_headers()
+            self.wfile.write(json.dumps({"error": "Token et Channel ID sont requis."}).encode())
+            return
 
-        return {
-            "statusCode": 400,
-            "body": json.dumps({"error": "Action invalide."})
-        }
+        # Change region
+        status_code = self.hop_regions(token, channel_id)
+        if status_code == 204:
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/json')
+            self.end_headers()
+            self.wfile.write(json.dumps({"message": "La région a été changée avec succès."}).encode())
+        else:
+            self.send_response(500)
+            self.send_header('Content-Type', 'application/json')
+            self.end_headers()
+            self.wfile.write(json.dumps({"error": "Échec lors du changement de région."}).encode())
 
-    return {
-        "statusCode": 405,
-        "body": json.dumps({"error": "Méthode non autorisée."})
-    }
+# Alias required for Vercel
+handler = app = VocalChannelManager
