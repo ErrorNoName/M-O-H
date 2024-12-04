@@ -1,4 +1,5 @@
-from http.server import BaseHTTPRequestHandler
+# api/change_region.py
+
 import json
 import requests
 import random
@@ -22,11 +23,14 @@ def handler(request, context):
                 }
 
             region = random.choice(REGIONS)
-            session = requests.Session()
-            response = session.patch(
+            headers = {
+                "Authorization": token,
+                "User-Agent": "VocalDown"
+            }
+            response = requests.patch(
                 f"https://discord.com/api/v9/channels/{channel_id}/call",
                 json={"region": region},
-                headers={"authorization": token, "user-agent": "VocalChannelManager"}
+                headers=headers
             )
 
             if response.status_code == 204:
